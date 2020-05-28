@@ -42,13 +42,15 @@ module.exports = function cacheRenderer(nuxt, config) {
 
         return !context.res.spa &&
             config.cache.pages.some(pat =>
-                pat instanceof RegExp
-                    ? pat.test(path)
-                    : path.startsWith(pat)
+                pat.route instanceof RegExp
+                    ? pat.route.test(path)
+                    : path.startsWith(pat.route)
         );
     }
 
     function defaultCacheKeyBuilder(route, context) {
+      return route
+
       var hostname = context.req && context.req.hostname || context.req && context.req.host;
       if(!hostname) return;
       const cacheKey = config.cache.useHostPrefix === true && hostname
@@ -56,6 +58,15 @@ module.exports = function cacheRenderer(nuxt, config) {
         : route;
 
       if (isCacheFriendly(route, context)) return cacheKey;
+    }
+
+    function getPageTTL(route) {
+      const page = config.cache.pages.find(e => e.route.test(route))
+      if(page) {
+        return page.ttl
+      }
+
+      return false
     }
 
     const currentVersion = config.version || config.cache.version;
@@ -75,7 +86,9 @@ module.exports = function cacheRenderer(nuxt, config) {
             return renderRoute(route, context)
                 .then(function(result) {
                     if (!result.error) {
-                        cache.setAsync(cacheKey, serialize(result));
+                        cache.setAsync(cacheKey, serialize(result), {
+                          ttl: getPageTTL(route) || config.cache.store.ttl
+                        });
                     }
                     return result;
                 });
